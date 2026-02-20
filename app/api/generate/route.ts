@@ -35,13 +35,13 @@ export async function POST(req: Request) {
             }
 
             const response = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+                `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
                 {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         contents: [{ parts }],
-                        generationConfig: { responseMimeType: "application/json" }
+                        generation_config: { response_mime_type: "application/json" }
                     }),
                 }
             );
@@ -51,7 +51,8 @@ export async function POST(req: Request) {
             return NextResponse.json({ analysis: JSON.parse(text || "{}") });
         }
 
-        console.log(`Nano Banana Engine: Inbound Request (Count: ${targetCount}, Ratio: ${ratio || '3:4'})`);
+        const forcedRatio = "3:4";
+        console.log(`Nano Banana Engine: Inbound Request (Count: ${targetCount}, Model: gemini-2.5-flash-image, Ratio: ${forcedRatio})`);
 
         // --- Context-Aware Scenario Generation (lightweight, text-only, with timeout) ---
         let scenarios: string[] = [];
@@ -70,6 +71,8 @@ export async function POST(req: Request) {
         const modelsToTry = [
             "gemini-2.5-flash-image",
             "gemini-2.0-flash-exp-image-generation",
+            "gemini-2.0-flash",
+            "gemini-2.0-flash-lite", // Extremely high quota fallback
             "imagen-3.0-generate-001",
         ];
 
@@ -88,18 +91,26 @@ export async function POST(req: Request) {
                     const assetPlural = assetCount > 1 ? "multiple assets" : "the asset";
                     const assetList = assetCount > 1 ? Array.from({ length: assetCount }, (_, k) => `[ASSET ${k + 1}]`).join(", ") : "[ASSET 1]";
 
-                    const parts: any[] = [{ text: `BASE PROMPT: ${prompt}. ${scenario}. ASPECT RATIO: ${ratio || '3:4'}. RANDOM SEED: ${seed}. TASK: Render the product using ${assetPlural} (${assetList}) into this specific scenario. ABSOLUTE PRODUCT INTEGRITY: The product is a FROZEN GEOMETRY. Direct rendering only. Do NOT re-type, re-draw, or interpret any text, fonts, or branding on the box/label. Replicate the reference exactly with zero deformation of visual details.` }];
+                    const parts: any[] = [{
+                        text: `TASK: ${prompt}. ${scenario}. ASPECT RATIO: ${forcedRatio}. RANDOM SEED: ${seed}.
+MISSION : Render the product shown in ${assetList} into the specified scenario. 
 
-                    // Handle multiple reference images (logos)
+ABSOLUTE CONSTRAINTS:
+1. PRODUCT FIDELITY: The product in ${assetList} is the HEARTRACK of this image. Replicate its visual geometry, materials, texture, and branding with 100% precision. DO NOT alter the logo, the font, or the fundamental shape of the product.
+2. INTEGRITY: Treat the attached pixels as the ONLY source of truth. The generated product must look like a high-resolution photograph of the ACTUAL object provided.
+3. SCENARIO MERGING: Seamlessly integrate the product into the ${scenario} while maintaining its aesthetic prominence.
+4. PHOTOREALISM: Use high-end commercial photography standards. Sharp focus on product, natural lighting transitions, and realistic shadow casting.` }];
+
+                    // Handle multiple reference images (logos/products)
                     if (Array.isArray(referenceImages)) {
                         referenceImages.forEach((imgBase64: string, idx: number) => {
                             if (imgBase64 && imgBase64.includes("base64,")) {
                                 const [mimePart, dataPart] = imgBase64.split("base64,");
                                 const mimeType = mimePart.replace("data:", "").replace(";", "");
-                                parts.push({ text: `[ASSET ${idx + 1}]:` });
+                                parts.push({ text: `[ASSET ${idx + 1} - PRODUCT SUBJECT]:` });
                                 parts.push({
-                                    inline_data: {
-                                        mime_type: mimeType || "image/jpeg",
+                                    inlineData: {
+                                        mimeType: mimeType || "image/jpeg",
                                         data: dataPart
                                     }
                                 });
@@ -108,31 +119,36 @@ export async function POST(req: Request) {
                     }
 
                     // Final Safety Directive
-                    parts.push({ text: `FINAL DIRECTIVE: FROZEN TEXT & GEOMETRY. Use ${assetList} as the ONLY source of truth for branding. Replicate all text with 100% precision. RADICAL REALISM: Documentary photography style. Skin must have texture and details with visible pores and natural imperfections. NO glossy highlights, NO airbrushed smoothness, NO plastic textures. Maintain absolute product fidelity for all surfaces.` });
+                    parts.push({ text: `FINAL SAFETY DIRECTIVE: ZERO DEFORMATION. The product must remain FROZEN in its geometry and branding. If multiple assets are provided, treat them as different parts of the same product or a set. RADICAL REALISM: No digital smoothing, no AI filters. Skin must have pores, metal must have realistic reflections, and liquid must have natural surface tension.` });
 
                     const requestBody: any = {
                         contents: [{ parts }],
-                        generation_config: {
-                            response_modalities: ["TEXT", "IMAGE"],
-                        }
+                        generation_config: {}
                     };
 
-                    // Add aspect ratio only if model supports it (Gemini 2.5+ or Imagen)
-                    if (modelId !== "gemini-2.0-flash-exp-image-generation") {
-                        if (modelId.startsWith("imagen")) {
-                            requestBody.generation_config = {
-                                candidate_count: 1,
-                                aspect_ratio: ratio || "1:1"
-                            };
-                        } else {
-                            // Gemini 2.5 Flash Image uses image_config
-                            requestBody.generation_config.image_config = {
-                                aspect_ratio: ratio || "1:1"
-                            };
-                        }
+                    // Configuration tailored per model family
+                    if (modelId.includes("imagen")) {
+                        // Imagen 3.0/4.0 REST API format - trying both common fields for safety
+                        requestBody.generation_config = {
+                            candidate_count: 1,
+                            aspect_ratio: forcedRatio,
+                            aspectRatio: forcedRatio
+                        };
+                    } else if (modelId.includes("gemini-2.0-flash")) {
+                        // All 2.0 Flash versions (exp, lite, etc.)
+                        requestBody.generation_config = {
+                            response_modalities: ["TEXT", "IMAGE"],
+                            image_config: { aspect_ratio: forcedRatio }
+                        };
+                    } else {
+                        // gemini-2.5-flash-image
+                        requestBody.generation_config = {
+                            response_modalities: ["IMAGE"],
+                            image_config: { aspect_ratio: forcedRatio }
+                        };
                     }
 
-                    console.log(`  → Variation ${i + 1}: trying ${modelId} (ratio: ${ratio || '1:1'})...`);
+                    console.log(`  → Variation ${i + 1}: trying ${modelId} (ratio: ${forcedRatio})...`);
 
                     const response = await fetch(
                         `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`,
@@ -140,13 +156,22 @@ export async function POST(req: Request) {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify(requestBody),
-                            signal: AbortSignal.timeout(90000) // 90s per attempt
+                            signal: AbortSignal.timeout(120000)
                         }
                     );
 
                     if (!response.ok) {
-                        const error = await response.json();
-                        lastError = error.error?.message || `HTTP ${response.status}`;
+                        let errorMsg = `HTTP ${response.status}`;
+                        try {
+                            const errorData = await response.json();
+                            errorMsg = errorData.error?.message || JSON.stringify(errorData) || errorMsg;
+                        } catch (e) {
+                            try {
+                                const text = await response.text();
+                                errorMsg = text.substring(0, 200) || errorMsg;
+                            } catch (e2) { }
+                        }
+                        lastError = errorMsg;
                         console.warn(`  ✗ ${modelId} variation ${i + 1}: ${lastError}`);
                         continue;
                     }
@@ -221,7 +246,10 @@ RULES:
 3. CREATIVITY: Do NOT use generic studio backgrounds for all. One can be studio, others should be "in the wild" or "lifestyle".
 4. DIVERSITY: Ensure each of the ${count} scenarios is distinct in lighting, color, and location.
 5. FORMAT: Return each as "[SCENARIO: SHORT_NAME] - one line description of setting, lighting, mood."
-6. Return ONLY a JSON array of strings.`
+6. EQUILIBRIUM: Balance product consistency with real-life utility. The product must be recognizable and consistent, but the scene must show it in actual use, generating a realistic 'action' or 'utility' context.
+7. HUMAN NATURALISM: Human characters must look like real human beings in specific candid moments with natural skin imperfections (texture, pores, small blemishes), not models in a studio. No airbrushing or filters.
+8. CLONE RULE: If a design clone is requested, use the reference image ONLY for composition, lighting, and environment. COMPLETELY IGNORE and EXCLUDE any text, numbers, logos, or graphic overlays present in that reference image.
+9. Return ONLY a JSON array of strings.`
         }];
 
         // Add reference images for visual analysis
@@ -231,8 +259,8 @@ RULES:
                     const [mimePart, dataPart] = imgBase64.split("base64,");
                     const mimeType = mimePart.replace("data:", "").replace(";", "");
                     parts.push({
-                        inline_data: {
-                            mime_type: mimeType || "image/jpeg",
+                        inlineData: {
+                            mimeType: mimeType || "image/jpeg",
                             data: dataPart
                         }
                     });
@@ -241,15 +269,15 @@ RULES:
         }
 
         const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
             {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     contents: [{ parts }],
-                    generationConfig: { responseMimeType: "application/json" }
+                    generation_config: { response_mime_type: "application/json" }
                 }),
-                signal: AbortSignal.timeout(15000) // 15s for deeper analysis
+                signal: AbortSignal.timeout(45000) // 45s for deeper analysis
             }
         );
         const data = await response.json();

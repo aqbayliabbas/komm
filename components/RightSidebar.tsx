@@ -39,8 +39,8 @@ export function RightSidebar({
                         <Settings2 size={20} className="text-blue-400" />
                     </div>
                     <div>
-                        <h1 className="text-sm font-black text-white tracking-[0.2em] uppercase">Workspace</h1>
-                        <p className="text-[8px] text-zinc-400 font-bold uppercase tracking-widest leading-tight">Project Management</p>
+                        <h1 className="text-sm font-black text-white tracking-[0.2em] uppercase">Espace de Travail</h1>
+                        <p className="text-[8px] text-zinc-400 font-bold uppercase tracking-widest leading-tight">Gestion de Projet</p>
                     </div>
                 </div>
             </div>
@@ -48,10 +48,10 @@ export function RightSidebar({
             <div className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-hide">
                 <div className="space-y-4">
                     <div className="space-y-2 px-1">
-                        <label className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.2em] block pl-1">Target Project</label>
+                        <label className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.2em] block pl-1">Projet Cible</label>
                         <input
                             type="text"
-                            placeholder="Set Name..."
+                            placeholder="Définir le nom..."
                             value={projectName}
                             onChange={(e) => setProjectName?.(e.target.value)}
                             className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-[10px] font-bold text-white focus:outline-none focus:border-blue-500/50 transition-colors uppercase tracking-widest placeholder:text-zinc-700"
@@ -99,7 +99,7 @@ export function RightSidebar({
 
                     <div className="pt-4">
                         <div className="flex items-center justify-between px-2 mb-4">
-                            <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">Saved Flows</span>
+                            <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">Flux Sauvegardés</span>
                             <div className="h-[1px] flex-1 ml-4 bg-white/10" />
                         </div>
 
@@ -111,8 +111,8 @@ export function RightSidebar({
                                         className="flex items-center justify-between group p-3 bg-white/[0.02] hover:bg-white/[0.05] rounded-xl border border-white/5 hover:border-white/10 transition-all cursor-pointer relative overflow-hidden"
                                     >
                                         <div className="flex flex-col flex-1 min-w-0" onClick={() => onLoadProject?.(p.id)}>
-                                            <span className="text-[10px] font-bold text-zinc-200 uppercase truncate pr-2 group-hover:text-blue-400 transition-colors uppercase tracking-wider">{p.name || "Untitled"}</span>
-                                            <span className="text-[7px] text-zinc-600 font-bold tracking-widest uppercase mt-1">{new Date(p.date).toLocaleDateString()} at {new Date(p.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                            <span className="text-[10px] font-bold text-zinc-200 uppercase truncate pr-2 group-hover:text-blue-400 transition-colors uppercase tracking-wider">{p.name || "Sans titre"}</span>
+                                            <span className="text-[7px] text-zinc-600 font-bold tracking-widest uppercase mt-1">{new Date(p.date).toLocaleDateString()} à {new Date(p.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                         </div>
                                         <button
                                             onClick={(e) => {
@@ -129,7 +129,7 @@ export function RightSidebar({
                         ) : (
                             <div className="py-12 flex flex-col items-center justify-center opacity-20 transform scale-75">
                                 <FileText size={40} className="text-zinc-500 mb-4" />
-                                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500">Archive Empty</span>
+                                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500">Archive Vide</span>
                             </div>
                         )}
                     </div>
@@ -138,7 +138,7 @@ export function RightSidebar({
 
             <div className="p-6 bg-black/40 border-t border-white/10">
                 <div className="flex items-center justify-center p-4 bg-white/[0.02] rounded-2xl border border-white/5 opacity-50">
-                    <span className="text-[8px] text-zinc-500 font-black uppercase tracking-[0.4em]">Flow History System</span>
+                    <span className="text-[8px] text-zinc-500 font-black uppercase tracking-[0.4em]">Système d'Historique de Flux</span>
                 </div>
             </div>
         </aside>
