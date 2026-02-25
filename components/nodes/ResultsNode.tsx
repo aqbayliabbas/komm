@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { Handle, Position, useReactFlow } from "@xyflow/react";
-import { Zap, X, Copy, Download, Clock, Image as ImageIcon, ChevronLeft, ChevronRight } from "lucide-react";
+import { Zap, X, Copy, Download, Clock, Image as ImageIcon, ChevronLeft, ChevronRight, Edit3 } from "lucide-react";
 
 export function ResultsNode({ id, data }: any) {
     const { deleteElements } = useReactFlow();
@@ -23,6 +23,12 @@ export function ResultsNode({ id, data }: any) {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+    };
+
+    const handleEdit = (imageUrl: string) => {
+        if (data.onEditImage) {
+            data.onEditImage(imageUrl, id);
+        }
     };
 
     return (
@@ -66,6 +72,13 @@ export function ResultsNode({ id, data }: any) {
                                 <div key={img.id || idx} className="relative group aspect-[3/4] rounded-xl overflow-hidden border border-white/10 bg-black/40">
                                     <img src={img.url} alt="Generated" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2 gap-2">
+                                        <button
+                                            onClick={() => handleEdit(img.url)}
+                                            className="p-2 bg-white/10 hover:bg-white/20 rounded-lg backdrop-blur-md border border-white/10 transition-all text-white"
+                                            title="Edit with Mask"
+                                        >
+                                            <Edit3 size={12} />
+                                        </button>
                                         <button
                                             onClick={() => copyToClipboard(data.engineeredPrompt || data.prompt)}
                                             className="p-2 bg-white/10 hover:bg-white/20 rounded-lg backdrop-blur-md border border-white/10 transition-all text-white"

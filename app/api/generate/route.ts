@@ -51,6 +51,81 @@ export async function POST(req: Request) {
             return NextResponse.json({ analysis: JSON.parse(text || "{}") });
         }
 
+        // --- Action: EDIT (Mask-based) ---
+        if (action === 'edit') {
+            const { image, mask } = body;
+            console.log("Nano Banana Engine: Mask-based Edit Request Received");
+
+            const editModel = "gemini-2.5-flash-image"; // Default for editing
+            const parts: any[] = [];
+
+            // Add Prompt
+            parts.push({
+                text: `TASK: ${prompt}. ASPECT RATIO: 3:4.
+MISSION: Refine the area specified by the mask in the provided image.
+CONSTRAINTS: 
+1. Maintain total consistency with the unmasked parts of the image.
+2. The edit must look photorealistic and perfectly blended.
+3. Zero deformation in the surrounding environment.` });
+
+            // Add Original Image
+            if (image && image.includes("base64,")) {
+                const [mimePart, dataPart] = image.split("base64,");
+                const mimeType = mimePart.replace("data:", "").replace(";", "");
+                parts.push({ text: "[ORIGINAL_IMAGE]:" });
+                parts.push({
+                    inlineData: { mimeType: mimeType || "image/jpeg", data: dataPart }
+                });
+            }
+
+            // Add Mask Image
+            if (mask && mask.includes("base64,")) {
+                const [mimePart, dataPart] = mask.split("base64,");
+                const mimeType = mimePart.replace("data:", "").replace(";", "");
+                parts.push({ text: "[EDIT_MASK]:" });
+                parts.push({
+                    inlineData: { mimeType: mimeType || "image/png", data: dataPart }
+                });
+            }
+
+            const requestBody = {
+                contents: [{ parts }],
+                generation_config: {
+                    response_modalities: ["IMAGE"],
+                    image_config: { aspect_ratio: "3:4" }
+                }
+            };
+
+            const response = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/${editModel}:generateContent?key=${apiKey}`,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(requestBody),
+                    signal: AbortSignal.timeout(120000)
+                }
+            );
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error?.message || "Edit failed");
+            }
+
+            const data = await response.json();
+            const imagePart = data.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData || p.inline_data);
+            const inlineData = imagePart?.inlineData || imagePart?.inline_data;
+
+            if (inlineData) {
+                return NextResponse.json({
+                    images: [{
+                        url: `data:${inlineData.mimeType || inlineData.mime_type};base64,${inlineData.data}`,
+                        id: `edit-${Date.now()}`
+                    }]
+                });
+            }
+            throw new Error("No image data returned from editing API");
+        }
+
         const forcedRatio = "3:4";
         console.log(`Nano Banana Engine: Inbound Request (Count: ${targetCount}, Model: gemini-2.5-flash-image, Ratio: ${forcedRatio})`);
 

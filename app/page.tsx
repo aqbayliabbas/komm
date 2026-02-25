@@ -27,6 +27,7 @@ import { ModelNode } from "@/components/nodes/ModelNode";
 import { StrategyNode } from "@/components/nodes/StrategyNode";
 import { CloneNode } from "@/components/nodes/CloneNode";
 import { SpecialDirectiveNode } from "@/components/nodes/SpecialDirectiveNode";
+import { MaskEditor } from "@/components/MaskEditor";
 
 const nodeTypes = {
   prompt: PromptNode,
@@ -48,6 +49,9 @@ function NodeSpaceInner() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [projectName, setProjectName] = useState("Nouvelle Campagne");
   const [projects, setProjects] = useState<any[]>([]);
+
+  // Mask Editing State
+  const [editingImage, setEditingImage] = useState<{ url: string, nodeId: string } | null>(null);
 
   const nodesRef = useRef(nodes);
   const edgesRef = useRef(edges);
@@ -128,19 +132,19 @@ function NodeSpaceInner() {
     setNodes((nds) => nds.concat(newNode));
   }, [setNodes]);
 
-  const performApiCall = useCallback(async (prompt: string, count: number, referenceImages: string[], artDirection: any, ratio: string = "1:1") => {
+  const performApiCall = useCallback(async (prompt: string, count: number, referenceImages: string[], artDirection: any, ratio: string = "1:1", extra?: any) => {
     try {
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, count, referenceImages, artDirection, ratio }),
+        body: JSON.stringify({ prompt, count, referenceImages, artDirection, ratio, ...extra }),
       });
 
       const result = await response.json();
       if (result.images) {
         setNodes((nds) =>
           nds.map((node) => {
-            if (node.type === 'results') {
+            if (node.type === 'results' && (extra?.targetNodeId ? node.id === extra.targetNodeId : true)) {
               return { ...node, data: { ...node.data, isGenerating: false, images: result.images } };
             }
             return node;
@@ -155,6 +159,32 @@ function NodeSpaceInner() {
       alert(error.message);
     }
   }, [setNodes]);
+
+  const handleEditImage = useCallback((imageUrl: string, nodeId: string) => {
+    setEditingImage({ url: imageUrl, nodeId });
+  }, []);
+
+  const handleMaskSave = useCallback(async (maskBase64: string, refinementPrompt: string) => {
+    if (!editingImage) return;
+
+    const { url, nodeId } = editingImage;
+    setEditingImage(null);
+
+    setNodes((nds) =>
+      nds.map((node) => {
+        if (node.id === nodeId) return { ...node, data: { ...node.data, isGenerating: true } };
+        return node;
+      })
+    );
+
+    // Call API with action: edit
+    performApiCall(refinementPrompt, 1, [], {}, "1:1", {
+      action: "edit",
+      image: url,
+      mask: maskBase64,
+      targetNodeId: nodeId
+    });
+  }, [editingImage, performApiCall, setNodes]);
 
   const runGeneration = useCallback(async () => {
     setNodes((nds) =>
@@ -218,7 +248,7 @@ function NodeSpaceInner() {
         if (referenceImages.length > 0) {
           cloneStr = `TÂCHE CRITIQUE (CLONE DESIGN) : Utilisez l'image [ASSET 1] UNIQUEMENT comme modèle de COMPOSITION, d'ANGLE de caméra et d'ENVIRONNEMENT. REMPLACEZ le produit présent dans [ASSET 1] par NOTRE PRODUIT représenté dans [ASSET 2]. Gardez la même pose et le même éclairage que [ASSET 1], mais les pixels du produit doivent provenir de [ASSET 2]. Ignorez logos/textes de [ASSET 1].`;
         } else {
-          cloneStr = `TÂCHE CRITIQUE (CLONE COMPOSITION) : Utilisez l'image [ASSET 1] comme modèle de structure/composition. Recréez cette scène avec le produit ${productDescription}.`;
+          cloneStr = `TÂCHE CRITIQUE (CLONE COMPOSITION) : Utilisez l'image [ASSET 1] comme modèle de structure/composition. Recréez cette scène with the produit ${productDescription}.`;
         }
       }
 
@@ -244,14 +274,23 @@ function NodeSpaceInner() {
       data: {
         ...node.data,
         onRun: node.type === 'model' ? runGeneration : undefined,
+        onEditImage: node.type === 'results' ? handleEditImage : undefined,
         isGenerating: node.type === 'model' ? nodes.some(n => n.type === 'results' && n.data.isGenerating) : node.data.isGenerating,
       }
     }));
-  }, [nodes, runGeneration]);
+  }, [nodes, runGeneration, handleEditImage]);
 
   return (
     <div className="flex w-full h-screen bg-[#080808] overflow-hidden font-sans">
       <Sidebar onAddNode={addNode} />
+      {editingImage && (
+        <MaskEditor
+          imageUrl={editingImage.url}
+          onSave={handleMaskSave}
+          onCancel={() => setEditingImage(null)}
+          initialPrompt="Modifier cette zone pour..."
+        />
+      )}
       <RightSidebar
         projectName={projectName}
         setProjectName={setProjectName}
